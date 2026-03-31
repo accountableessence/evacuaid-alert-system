@@ -1,52 +1,97 @@
-require('dotenv').config();
-const express = require('express');
-const http = require('http');
-const cors = require('cors');
-const { Server } = require('socket.io');
+import express from 'express';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import db from './firebase.js';
+
+dotenv.config();
 
 const app = express();
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: '*',
-    methods: ['GET', 'POST', 'PUT']
-  }
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+  cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
 app.use(cors());
 app.use(express.json());
 
-// Basic API placeholder for incidents
-app.post('/api/incidents', (req, res) => {
-  const { type, location, reportedBy } = req.body;
-  // TODO: Implement incident creation, Gemini API check
-  console.log('Incident reported:', { type, location, reportedBy });
-  
-  // Emit to socket
-  io.emit('admin:map_update', { type, location, active: true });
-  
-  res.status(201).json({ message: 'Incident received' });
-});
+const globalState = {
+  dangerZones: [],
+  tasks: []
+};
 
+// WebSocket Brain
 io.on('connection', (socket) => {
-  console.log('Client connected:', socket.id);
+  console.log(`🔌 Client active: [${socket.id}]`);
 
-  socket.on('location:update', (data) => {
-    console.log(`User ${socket.id} location updated:`, data);
+  // Sync state on load
+  socket.emit('admin:map_update', { dangerZones: globalState.dangerZones });
+
+  // 1. SOS Button Trigger
+  socket.on('incident:report', async (payload) => {
+    console.log(`🚨 SOS INCIDENT TRIGGERED:`, payload);
+    const incidentZone = payload.zone || 'A';
+    
+    // FIREBASE PIPELINE: Persist incident permanently if DB is active
+    if (db) {
+      try {
+        await db.collection('incidents').add({
+           type: payload.type || 'EMERGENCY',
+           zone: incidentZone,
+           status: 'ACTIVE',
+           timestamp: new Date()
+        });
+        console.log(`✅ Incident securely logged to Firebase Firestore`);
+      } catch (e) {
+        console.error("Failed writing to Firebase:", e.message);
+      }
+    }
+
+    if (!globalState.dangerZones.includes(incidentZone)) {
+       globalState.dangerZones.push(incidentZone);
+       
+       const newTask = {
+         id: `task_${Date.now()}`,
+         type: payload.type || 'EMERGENCY',
+         zone: incidentZone,
+         instructions: `Active incident tracked in Zone ${incidentZone}. Proceed safely and coordinate crowd displacement immediately.`,
+         status: 'ASSIGNED',
+         assignedTo: 'staff_pool'
+       };
+       globalState.tasks.push(newTask);
+       
+       io.emit('admin:map_update', { dangerZones: globalState.dangerZones });
+       io.emit('staff:dispatch', newTask);
+    }
   });
 
-  socket.on('incident:report', (data) => {
-    console.log(`User ${socket.id} triggered SOS via Socket:`, data);
-    // Broadcast for immediate map response
-    io.emit('zone:status_change', { zoneId: data.zoneId, status: 'DANGER' });
+  socket.on('task:update', ({ id, status }) => {
+     console.log(`📝 Task Updated - [${id}]: ${status}`);
+     // Mock updating Firebase task document
+     const t = globalState.tasks.find(t => t.id === id);
+     if (t) t.status = status;
+     
+     if (status === 'COMPLETED') {
+        const zone = t.zone;
+        globalState.dangerZones = globalState.dangerZones.filter(z => z !== zone);
+        io.emit('admin:map_update', { dangerZones: globalState.dangerZones });
+        console.log(`✅ Zone ${zone} secured. Incident resolved.`);
+     }
+  });
+
+  socket.on('admin:override', (payload) => {
+     // Trigger simulated PA Push Notifications to Firebase Cloud Messaging (FCM)
+     console.log(`📢 GLOBAL PA BROADCAST: [${payload.target}]: ${payload.message}`);
+     io.emit('attendee:alert', payload);
   });
 
   socket.on('disconnect', () => {
-    console.log('Client disconnected:', socket.id);
+    console.log(`🔌 Client detached: [${socket.id}]`);
   });
 });
 
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-  console.log(`Server listening on port ${PORT}`);
+httpServer.listen(PORT, () => {
+  console.log(`🚀 EvacuAid Node.js Core listening locally on port ${PORT}`);
 });
