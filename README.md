@@ -22,21 +22,25 @@ Google Gemini AI operates as the central intelligence hub for emergency response
 ## Proof of Google AI Usage
 Attach screenshots in a `/proof` folder:
 
-![AI Proof](./proof/screenshot1.png)
+![AI Proof](./proof/proof.png)
 
 ---
 
 ## Screenshots 
 Add project screenshots:
 
-![Screenshot1](./assets/screenshot1.png)  
-![Screenshot2](./assets/screenshot2.png)
+![Screenshot1](./assets/ss1.png)  
+![Screenshot2](./assets/ss2.png)
+![Screenshot3](./assets/ss3.png)
+![Screenshot4](./assets/ss4.png)
+![Screenshot5](./assets/ss5.png)
 
 ---
 
 ## Demo Video
 Upload your demo video to Google Drive and paste the shareable link here(max 3 minutes).
-[Watch Demo](#)
+[Watch Demo]
+(https://drive.google.com/file/d/16I-bbFSPk1DsswKEG031cJ3ZTci46mv9/view?usp=drive_link)
 
 ---
 
